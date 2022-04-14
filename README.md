@@ -41,6 +41,13 @@ For TypeScript users, you might also need `@types/mongodb`.
 
 ## Usage
 
+There are two ways to clean up the documents in MongoDB:
+
+- a [capped collection](https://www.mongodb.com/docs/manual/core/capped-collections/)
+- a [TTL index](https://www.mongodb.com/docs/manual/core/index-ttl/)
+
+### Usage with a capped collection
+
 ```js
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/mongo-adapter");
@@ -75,7 +82,40 @@ const main = async () => {
 main();
 ```
 
-Note: the [capped collection](https://docs.mongodb.com/manual/core/capped-collections/) prevents the collection from growing too big.
+### Usage with a TTL index
+
+```js
+const { Server } = require("socket.io");
+const { createAdapter } = require("@socket.io/mongo-adapter");
+const { MongoClient } = require("mongodb");
+
+const DB = "mydb";
+const COLLECTION = "socket.io-adapter-events";
+
+const io = new Server();
+
+const mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0", {
+  useUnifiedTopology: true,
+});
+
+const main = async () => {
+  await mongoClient.connect();
+
+  const mongoCollection = mongoClient.db(DB).collection(COLLECTION);
+
+  await mongoCollection.createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: 3600, background: true }
+  );
+
+  io.adapter(createAdapter(mongoCollection, {
+    addCreatedAtField: true
+  }));
+  io.listen(3000);
+}
+
+main();
+```
 
 ## Known errors
 
