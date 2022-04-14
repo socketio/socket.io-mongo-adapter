@@ -56,6 +56,12 @@ export interface MongoAdapterOptions {
    * @default 10000
    */
   heartbeatTimeout: number;
+
+  /**
+   * Add createdAt date time with every packet in mongodb
+   * @default false
+   */
+   addCreatedAt: boolean;
 }
 
 /**
@@ -109,6 +115,7 @@ export class MongoAdapter extends Adapter {
   public requestsTimeout: number;
   public heartbeatInterval: number;
   public heartbeatTimeout: number;
+  public addCreatedAt: boolean;
 
   private readonly mongoCollection: any;
   private changeStream: any;
@@ -136,6 +143,7 @@ export class MongoAdapter extends Adapter {
     this.requestsTimeout = opts.requestsTimeout || 5000;
     this.heartbeatInterval = opts.heartbeatInterval || 5000;
     this.heartbeatTimeout = opts.heartbeatTimeout || 10000;
+    this.addCreatedAt = opts.addCreatedAt || false;
 
     this.initChangeStream();
     this.publish({
@@ -333,6 +341,9 @@ export class MongoAdapter extends Adapter {
     document.uid = this.uid;
     document.nsp = this.nsp.name;
 
+    if (this.addCreatedAt) {
+      document.createdAt = new Date();
+    }
     this.mongoCollection.insertOne(document);
 
     this.scheduleHeartbeat();
