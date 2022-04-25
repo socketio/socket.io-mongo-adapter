@@ -105,8 +105,62 @@ export function createAdapter(
   mongoCollection: any,
   opts: Partial<MongoAdapterOptions> = {}
 ) {
+  opts.uid = opts.uid || randomId();
+
+  let adapters = new Map<string, MongoAdapter>();
+  let changeStream: any;
+
+  const initChangeStream = () => {
+    if (changeStream) {
+      changeStream.removeAllListeners("change");
+      changeStream.removeAllListeners("close");
+    }
+    changeStream = mongoCollection.watch([
+      {
+        $match: {
+          "fullDocument.uid": {
+            $ne: opts.uid, // ignore events from self
+          },
+        },
+      },
+    ]);
+
+    changeStream.on("change", (event: any) => {
+      adapters.get(event.fullDocument.nsp)?.onEvent(event);
+    });
+
+    changeStream.on("close", () => {
+      debug("change stream was closed, scheduling reconnection...");
+      setTimeout(() => {
+        initChangeStream();
+      }, 1000);
+    });
+  };
+
   return function (nsp: any) {
-    return new MongoAdapter(nsp, mongoCollection, opts);
+    if (!changeStream) {
+      initChangeStream();
+    }
+
+    let adapter = new MongoAdapter(nsp, mongoCollection, opts);
+
+    adapters.set(nsp.name, adapter);
+
+    const defaultClose = adapter.close;
+
+    adapter.close = () => {
+      adapters.delete(nsp.name);
+
+      if (adapters.size === 0) {
+        changeStream.removeAllListeners("close");
+        changeStream.close();
+        changeStream = null;
+      }
+
+      defaultClose.call(adapter);
+    };
+
+    return adapter;
   };
 }
 
@@ -118,7 +172,6 @@ export class MongoAdapter extends Adapter {
   public addCreatedAtField: boolean;
 
   private readonly mongoCollection: any;
-  private changeStream: any;
   private nodesMap: Map<string, number> = new Map<string, number>(); // uid => timestamp of last message
   private heartbeatTimer: NodeJS.Timeout | undefined;
   private requests: Map<string, Request> = new Map();
@@ -139,52 +192,22 @@ export class MongoAdapter extends Adapter {
   ) {
     super(nsp);
     this.mongoCollection = mongoCollection;
-    this.uid = opts.uid || randomId();
+    this.uid = opts.uid!;
     this.requestsTimeout = opts.requestsTimeout || 5000;
     this.heartbeatInterval = opts.heartbeatInterval || 5000;
     this.heartbeatTimeout = opts.heartbeatTimeout || 10000;
     this.addCreatedAtField = !!opts.addCreatedAtField;
 
-    this.initChangeStream();
     this.publish({
       type: EventType.INITIAL_HEARTBEAT,
     });
   }
 
   close(): Promise<void> | void {
-    if (this.changeStream) {
-      this.changeStream.removeAllListeners("close");
-      this.changeStream.close();
-    }
     if (this.heartbeatTimer) {
       clearTimeout(this.heartbeatTimer);
     }
-  }
-
-  private initChangeStream() {
-    if (this.changeStream) {
-      this.changeStream.removeAllListeners("change");
-      this.changeStream.removeAllListeners("close");
-    }
-    this.changeStream = this.mongoCollection.watch([
-      {
-        $match: {
-          "fullDocument.nsp": {
-            $eq: this.nsp.name, // ignore events from other namespaces
-          },
-          "fullDocument.uid": {
-            $ne: this.uid, // ignore events from self
-          },
-        },
-      },
-    ]);
-    this.changeStream.on("change", this.onEvent.bind(this));
-    this.changeStream.on("close", () => {
-      debug("change stream was closed, scheduling reconnection...");
-      setTimeout(() => {
-        this.initChangeStream();
-      }, 1000);
-    });
+    return;
   }
 
   public async onEvent(event: any) {
