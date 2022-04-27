@@ -19,6 +19,8 @@ enum EventType {
   FETCH_SOCKETS_RESPONSE,
   SERVER_SIDE_EMIT,
   SERVER_SIDE_EMIT_RESPONSE,
+  BROADCAST_CLIENT_COUNT,
+  BROADCAST_ACK,
 }
 
 interface Request {
@@ -28,6 +30,12 @@ interface Request {
   expected: number;
   current: number;
   responses: any[];
+}
+
+interface AckRequest {
+  type: EventType.BROADCAST;
+  clientCountCallback: (clientCount: number) => void;
+  ack: (...args: any[]) => void;
 }
 
 /**
@@ -175,6 +183,7 @@ export class MongoAdapter extends Adapter {
   private nodesMap: Map<string, number> = new Map<string, number>(); // uid => timestamp of last message
   private heartbeatTimer: NodeJS.Timeout | undefined;
   private requests: Map<string, Request> = new Map();
+  private ackRequests: Map<string, AckRequest> = new Map();
 
   /**
    * Adapter constructor.
@@ -232,12 +241,57 @@ export class MongoAdapter extends Adapter {
       }
       case EventType.BROADCAST: {
         debug("broadcast with opts %j", document.data.opts);
-        super.broadcast(
-          replaceBinaryObjectsByBuffers(document.data.packet),
-          MongoAdapter.deserializeOptions(document.data.opts)
-        );
+
+        const withAck = document.data.requestId !== undefined;
+        if (withAck) {
+          super.broadcastWithAck(
+            replaceBinaryObjectsByBuffers(document.data.packet),
+            MongoAdapter.deserializeOptions(document.data.opts),
+            (clientCount) => {
+              debug("waiting for %d client acknowledgements", clientCount);
+              this.publish({
+                type: EventType.BROADCAST_CLIENT_COUNT,
+                data: {
+                  requestId: document.data.requestId,
+                  clientCount,
+                },
+              });
+            },
+            (arg) => {
+              debug("received acknowledgement with value %j", arg);
+              this.publish({
+                type: EventType.BROADCAST_ACK,
+                data: {
+                  requestId: document.data.requestId,
+                  packet: arg,
+                },
+              });
+            }
+          );
+        } else {
+          super.broadcast(
+            replaceBinaryObjectsByBuffers(document.data.packet),
+            MongoAdapter.deserializeOptions(document.data.opts)
+          );
+        }
         break;
       }
+
+      case EventType.BROADCAST_CLIENT_COUNT: {
+        const request = this.ackRequests.get(document.data.requestId);
+        request?.clientCountCallback(document.data.clientCount);
+        break;
+      }
+
+      case EventType.BROADCAST_ACK: {
+        const request = this.ackRequests.get(document.data.requestId);
+        const clientResponse = replaceBinaryObjectsByBuffers(
+          document.data.packet
+        );
+        request?.ack(clientResponse);
+        break;
+      }
+
       case EventType.SOCKETS_JOIN: {
         debug("calling addSockets with opts %j", document.data.opts);
         super.addSockets(
@@ -407,6 +461,48 @@ export class MongoAdapter extends Adapter {
     process.nextTick(() => {
       super.broadcast(packet, opts);
     });
+  }
+
+  public broadcastWithAck(
+    packet: any,
+    opts: BroadcastOptions,
+    clientCountCallback: (clientCount: number) => void,
+    ack: (...args: any[]) => void
+  ) {
+    const onlyLocal = opts?.flags?.local;
+    if (!onlyLocal) {
+      const requestId = randomId();
+
+      this.publish({
+        type: EventType.BROADCAST,
+        data: {
+          packet,
+          requestId,
+          opts: MongoAdapter.serializeOptions(opts),
+        },
+      });
+
+      this.ackRequests.set(requestId, {
+        type: EventType.BROADCAST,
+        clientCountCallback,
+        ack,
+      });
+
+      // we have no way to know at this level whether the server has received an acknowledgement from each client, so we
+      // will simply clean up the ackRequests map after the given delay
+      setTimeout(() => {
+        this.ackRequests.delete(requestId);
+      }, opts.flags!.timeout);
+    }
+
+    // packets with binary contents are modified by the broadcast method, hence the nextTick()
+    process.nextTick(() => {
+      super.broadcastWithAck(packet, opts, clientCountCallback, ack);
+    });
+  }
+
+  public serverCount(): Promise<number> {
+    return Promise.resolve(1 + this.nodesMap.size);
   }
 
   addSockets(opts: BroadcastOptions, rooms: Room[]) {
