@@ -1,3 +1,12 @@
+## [0.2.1](https://github.com/socketio/socket.io-mongo-adapter/compare/0.2.0...0.2.1) (2022-05-03)
+
+
+### Bug Fixes
+
+* properly handle invalidate events ([938674d](https://github.com/socketio/socket.io-mongo-adapter/commit/938674d101fc01add3b6e01d59d20c2aa84b48eb))
+
+
+
 # [0.2.0](https://github.com/socketio/socket.io-mongo-adapter/compare/0.1.0...0.2.0) (2022-04-27)
 
 
