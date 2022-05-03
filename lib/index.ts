@@ -115,10 +115,14 @@ export function createAdapter(
 ) {
   opts.uid = opts.uid || randomId();
 
+  let isClosed = false;
   let adapters = new Map<string, MongoAdapter>();
   let changeStream: any;
 
   const initChangeStream = () => {
+    if (isClosed) {
+      return;
+    }
     if (changeStream) {
       changeStream.removeAllListeners("change");
       changeStream.removeAllListeners("close");
@@ -134,7 +138,11 @@ export function createAdapter(
     ]);
 
     changeStream.on("change", (event: any) => {
-      adapters.get(event.fullDocument.nsp)?.onEvent(event);
+      adapters.get(event.fullDocument?.nsp)?.onEvent(event);
+    });
+
+    changeStream.on("error", (err: Error) => {
+      debug("change stream encountered an error: %s", err.message);
     });
 
     changeStream.on("close", () => {
@@ -147,6 +155,7 @@ export function createAdapter(
 
   return function (nsp: any) {
     if (!changeStream) {
+      isClosed = false;
       initChangeStream();
     }
 
@@ -163,6 +172,7 @@ export function createAdapter(
         changeStream.removeAllListeners("close");
         changeStream.close();
         changeStream = null;
+        isClosed = true;
       }
 
       defaultClose.call(adapter);

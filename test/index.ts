@@ -434,4 +434,10 @@ describe("@socket.io/mongodb-adapter", () => {
       });
     });
   });
+
+  it("should not throw when receiving a drop event", async () => {
+    await mongoClient.db("test").dropCollection("events");
+
+    await sleep(100);
+  });
 });
