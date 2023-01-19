@@ -27,7 +27,7 @@
     "@types/mocha": "^8.2.1",
     "@types/node": "^14.14.7",
     "expect.js": "0.3.1",
-    "mocha": "^8.4.0",
+    "mocha": "^10.2.0",
     "mongodb": "^4.13.0",
     "nyc": "^15.1.0",
     "prettier": "^2.1.2",
