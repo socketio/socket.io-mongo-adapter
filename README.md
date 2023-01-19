@@ -37,9 +37,9 @@ Related packages:
 npm install @socket.io/mongo-adapter mongodb
 ```
 
-For TypeScript users, you might also need `@types/mongodb`.
-
 ## Usage
+
+Broadcasting packets within a Socket.IO cluster is achieved by creating MongoDB documents and using a [change stream](https://docs.mongodb.com/manual/changeStreams/) on each Socket.IO server.
 
 There are two ways to clean up the documents in MongoDB:
 
@@ -49,72 +49,61 @@ There are two ways to clean up the documents in MongoDB:
 ### Usage with a capped collection
 
 ```js
-const { Server } = require("socket.io");
-const { createAdapter } = require("@socket.io/mongo-adapter");
-const { MongoClient } = require("mongodb");
+import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/mongo-adapter";
+import { MongoClient } from "mongodb";
 
 const DB = "mydb";
 const COLLECTION = "socket.io-adapter-events";
 
 const io = new Server();
 
-const mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0", {
-  useUnifiedTopology: true,
-});
+const mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
 
-const main = async () => {
-  await mongoClient.connect();
+await mongoClient.connect();
 
-  try {
-    await mongoClient.db(DB).createCollection(COLLECTION, {
-      capped: true,
-      size: 1e6
-    });
-  } catch (e) {
-    // collection already exists
-  }
-  const mongoCollection = mongoClient.db(DB).collection(COLLECTION);
-
-  io.adapter(createAdapter(mongoCollection));
-  io.listen(3000);
+try {
+  await mongoClient.db(DB).createCollection(COLLECTION, {
+    capped: true,
+    size: 1e6
+  });
+} catch (e) {
+  // collection already exists
 }
+const mongoCollection = mongoClient.db(DB).collection(COLLECTION);
 
-main();
+io.adapter(createAdapter(mongoCollection));
+io.listen(3000);
 ```
 
 ### Usage with a TTL index
 
 ```js
-const { Server } = require("socket.io");
-const { createAdapter } = require("@socket.io/mongo-adapter");
-const { MongoClient } = require("mongodb");
+import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/mongo-adapter";
+import { MongoClient } from "mongodb";
 
 const DB = "mydb";
 const COLLECTION = "socket.io-adapter-events";
 
 const io = new Server();
 
-const mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0", {
-  useUnifiedTopology: true,
-});
+const mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
 
-const main = async () => {
-  await mongoClient.connect();
+await mongoClient.connect();
 
-  const mongoCollection = mongoClient.db(DB).collection(COLLECTION);
+const mongoCollection = mongoClient.db(DB).collection(COLLECTION);
 
-  await mongoCollection.createIndex(
-    { createdAt: 1 },
-    { expireAfterSeconds: 3600, background: true }
-  );
+await mongoCollection.createIndex(
+  { createdAt: 1 },
+  { expireAfterSeconds: 3600, background: true }
+);
 
-  io.adapter(createAdapter(mongoCollection, {
-    addCreatedAtField: true
-  }));
-  io.listen(3000);
-}
+io.adapter(createAdapter(mongoCollection, {
+  addCreatedAtField: true
+}));
 
-main();
+io.listen(3000);
 ```
 
 ## Known errors

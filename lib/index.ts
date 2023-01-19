@@ -76,6 +76,8 @@ export interface MongoAdapterOptions {
  * It seems the `promoteBuffers` option is not always honored, so we manually replace Binary objects by the underlying
  * Buffer objects.
  *
+ * Update: it seems to be fixed with `mongodb@4`, but we'll keep it for backward compatibility
+ *
  * Reference:
  * - http://mongodb.github.io/node-mongodb-native/3.6/api/Binary.html
  * - https://jira.mongodb.org/browse/NODE-1421
@@ -468,6 +470,8 @@ export class MongoAdapter extends Adapter {
     }
 
     // packets with binary contents are modified by the broadcast method, hence the nextTick()
+    // update: this should be fixed now, but we'll keep it for backward compatibility
+    // see: https://github.com/socketio/socket.io-parser/commit/ae8dd88995dbd7f89c97e5cc15e5b489fa0efece
     process.nextTick(() => {
       super.broadcast(packet, opts);
     });

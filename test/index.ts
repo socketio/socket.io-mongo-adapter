@@ -19,9 +19,7 @@ describe("@socket.io/mongodb-adapter", () => {
     servers = [];
     serverSockets = [];
     clientSockets = [];
-    mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0", {
-      useUnifiedTopology: true, // prevent warnings in the console
-    });
+    mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
     mongoClient.connect(() => {
       const collection = mongoClient.db("test").collection("events");
 
