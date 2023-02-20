@@ -1,5 +1,13 @@
-import { Adapter, BroadcastOptions, Room } from "socket.io-adapter";
+import {
+  Adapter,
+  BroadcastOptions,
+  PrivateSessionId,
+  Room,
+  Session,
+} from "socket.io-adapter";
 import { randomBytes } from "crypto";
+import { ObjectId } from "mongodb";
+import type { Collection } from "mongodb";
 
 const randomId = () => randomBytes(8).toString("hex");
 const debug = require("debug")("socket.io-mongo-adapter");
@@ -21,6 +29,35 @@ enum EventType {
   SERVER_SIDE_EMIT_RESPONSE,
   BROADCAST_CLIENT_COUNT,
   BROADCAST_ACK,
+  SESSION,
+}
+
+/**
+ * The format of the documents in the MongoDB collection
+ */
+interface AdapterEvent {
+  /**
+   * The type of the event
+   */
+  type: EventType;
+  /**
+   * The UID of the server, to filter event created by itself (see watch() call)
+   */
+  uid?: string;
+  /**
+   * The namespace
+   */
+  nsp?: string;
+  /**
+   * The date of creation of the event, to be able to manually clean up the collection.
+   *
+   * @see MongoAdapterOptions.addCreatedAtField
+   */
+  createdAt?: Date;
+  /**
+   * Some additional data, depending on the event type
+   */
+  data?: any;
 }
 
 interface Request {
@@ -191,11 +228,12 @@ export class MongoAdapter extends Adapter {
   public heartbeatTimeout: number;
   public addCreatedAtField: boolean;
 
-  private readonly mongoCollection: any;
+  private readonly mongoCollection: Collection;
   private nodesMap: Map<string, number> = new Map<string, number>(); // uid => timestamp of last message
   private heartbeatTimer: NodeJS.Timeout | undefined;
   private requests: Map<string, Request> = new Map();
   private ackRequests: Map<string, AckRequest> = new Map();
+  private isClosed = false;
 
   /**
    * Adapter constructor.
@@ -225,6 +263,7 @@ export class MongoAdapter extends Adapter {
   }
 
   close(): Promise<void> | void {
+    this.isClosed = true;
     if (this.heartbeatTimer) {
       clearTimeout(this.heartbeatTimer);
     }
@@ -281,10 +320,12 @@ export class MongoAdapter extends Adapter {
             }
           );
         } else {
-          super.broadcast(
-            replaceBinaryObjectsByBuffers(document.data.packet),
-            MongoAdapter.deserializeOptions(document.data.opts)
-          );
+          const packet = replaceBinaryObjectsByBuffers(document.data.packet);
+          const opts = MongoAdapter.deserializeOptions(document.data.opts);
+
+          this.addOffsetIfNecessary(packet, opts, document._id);
+
+          super.broadcast(packet, opts);
         }
         break;
       }
@@ -415,6 +456,7 @@ export class MongoAdapter extends Adapter {
   }
 
   private scheduleHeartbeat() {
+    debug("schedule heartbeat in %d ms", this.heartbeatInterval);
     if (this.heartbeatTimer) {
       clearTimeout(this.heartbeatTimer);
     }
@@ -426,16 +468,23 @@ export class MongoAdapter extends Adapter {
     }, this.heartbeatInterval);
   }
 
-  private publish(document: any) {
+  private publish(document: AdapterEvent): Promise<string> {
+    if (this.isClosed) {
+      return Promise.reject("adapter is closed");
+    }
+    debug("publish document %d", document.type);
     document.uid = this.uid;
     document.nsp = this.nsp.name;
 
     if (this.addCreatedAtField) {
       document.createdAt = new Date();
     }
-    this.mongoCollection.insertOne(document);
 
     this.scheduleHeartbeat();
+
+    return this.mongoCollection
+      .insertOne(document)
+      .then((result) => result.insertedId.toString("hex"));
   }
 
   /**
@@ -457,16 +506,22 @@ export class MongoAdapter extends Adapter {
     };
   }
 
-  public broadcast(packet: any, opts: BroadcastOptions) {
+  public async broadcast(packet: any, opts: BroadcastOptions) {
     const onlyLocal = opts?.flags?.local;
     if (!onlyLocal) {
-      this.publish({
-        type: EventType.BROADCAST,
-        data: {
-          packet,
-          opts: MongoAdapter.serializeOptions(opts),
-        },
-      });
+      try {
+        const offset = await this.publish({
+          type: EventType.BROADCAST,
+          data: {
+            packet,
+            opts: MongoAdapter.serializeOptions(opts),
+          },
+        });
+        this.addOffsetIfNecessary(packet, opts, offset);
+      } catch (err) {
+        debug("error while inserting document: %s", err);
+        return;
+      }
     }
 
     // packets with binary contents are modified by the broadcast method, hence the nextTick()
@@ -475,6 +530,34 @@ export class MongoAdapter extends Adapter {
     process.nextTick(() => {
       super.broadcast(packet, opts);
     });
+  }
+
+  /**
+   * Adds an offset at the end of the data array in order to allow the client to receive any missed packets when it
+   * reconnects after a temporary disconnection.
+   *
+   * @param packet
+   * @param opts
+   * @param offset
+   * @private
+   */
+  private addOffsetIfNecessary(
+    packet: any,
+    opts: BroadcastOptions,
+    offset: string
+  ) {
+    if (!this.nsp.server.opts.connectionStateRecovery) {
+      return;
+    }
+    const isEventPacket = packet.type === 2;
+    // packets with acknowledgement are not stored because the acknowledgement function cannot be serialized and
+    // restored on another server upon reconnection
+    const withoutAcknowledgement = packet.id === undefined;
+    const notVolatile = opts.flags?.volatile === undefined;
+
+    if (isEventPacket && withoutAcknowledgement && notVolatile) {
+      packet.data.push(offset);
+    }
   }
 
   public broadcastWithAck(
@@ -687,5 +770,104 @@ export class MongoAdapter extends Adapter {
         packet,
       },
     });
+  }
+
+  override persistSession(session: any) {
+    debug("persisting session: %j", session);
+    this.publish({
+      type: EventType.SESSION,
+      data: session,
+    });
+  }
+
+  override async restoreSession(
+    pid: PrivateSessionId,
+    offset: string
+  ): Promise<Session> {
+    if (!ObjectId.isValid(offset)) {
+      return Promise.reject("invalid offset");
+    }
+    debug("restoring session: %s", pid);
+    const eventOffset = new ObjectId(offset);
+
+    let results;
+    try {
+      results = await Promise.all([
+        // could use a sparse index on [data.pid] (only index the documents whose type is EventType.SESSION)
+        this.mongoCollection.findOneAndDelete({
+          type: EventType.SESSION,
+          "data.pid": pid,
+        }),
+        this.mongoCollection.findOne({
+          type: EventType.BROADCAST,
+          _id: eventOffset,
+        }),
+      ]);
+    } catch (e) {
+      return Promise.reject("error while fetching session");
+    }
+
+    if (!results[0].value || !results[1]) {
+      return Promise.reject("session or offset not found");
+    }
+
+    const session = results[0].value.data;
+
+    // could use a sparse index on [_id, data.opts.rooms, data.opts.except] (only index the documents whose type is EventType.BROADCAST)
+    const cursor = this.mongoCollection.find({
+      $and: [
+        {
+          type: EventType.BROADCAST,
+        },
+        {
+          _id: {
+            $gt: eventOffset,
+          },
+        },
+        {
+          $or: [
+            {
+              "data.opts.rooms": {
+                $size: 0,
+              },
+            },
+            {
+              "data.opts.rooms": {
+                $in: session.rooms,
+              },
+            },
+          ],
+        },
+        {
+          $or: [
+            {
+              "data.opts.except": {
+                $size: 0,
+              },
+            },
+            {
+              "data.opts.except": {
+                $nin: session.rooms,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    session.missedPackets = [];
+
+    try {
+      await cursor.forEach((document: any) => {
+        const packetData = document?.data?.packet?.data;
+        if (packetData) {
+          session.missedPackets.push(packetData);
+        }
+      });
+    } catch (e) {
+      return Promise.reject("error while fetching missed packets");
+    }
+
+    return session;
   }
 }

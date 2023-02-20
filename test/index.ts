@@ -15,14 +15,17 @@ describe("@socket.io/mongodb-adapter", () => {
     clientSockets: ClientSocket[],
     mongoClient: MongoClient;
 
-  beforeEach((done) => {
+  beforeEach(async () => {
     servers = [];
     serverSockets = [];
     clientSockets = [];
-    mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
-    mongoClient.connect(() => {
-      const collection = mongoClient.db("test").collection("events");
 
+    mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
+    await mongoClient.connect();
+
+    const collection = mongoClient.db("test").collection("events");
+
+    return new Promise((resolve) => {
       for (let i = 1; i <= NODES_COUNT; i++) {
         const httpServer = createServer();
         const io = new Server(httpServer);
@@ -43,7 +46,7 @@ describe("@socket.io/mongodb-adapter", () => {
 
               await sleep(200);
 
-              done();
+              resolve();
             }
           });
         });
@@ -51,7 +54,7 @@ describe("@socket.io/mongodb-adapter", () => {
     });
   });
 
-  afterEach((done) => {
+  afterEach(async () => {
     servers.forEach((server) => {
       // @ts-ignore
       server.httpServer.close();
@@ -60,7 +63,7 @@ describe("@socket.io/mongodb-adapter", () => {
     clientSockets.forEach((socket) => {
       socket.disconnect();
     });
-    mongoClient.close(done);
+    await mongoClient.close();
   });
 
   describe("broadcast", function () {
@@ -437,4 +440,6 @@ describe("@socket.io/mongodb-adapter", () => {
 
     await sleep(100);
   });
+
+  import("./connection-state-recovery");
 });
