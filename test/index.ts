@@ -441,5 +441,24 @@ describe("@socket.io/mongodb-adapter", () => {
     await sleep(100);
   });
 
+  it("should resume the change stream upon reconnection", async () => {
+    await mongoClient.close(true);
+
+    return new Promise(async (resolve) => {
+      const partialDone = times(3, resolve);
+      clientSockets[0].on("test1", partialDone);
+      clientSockets[1].on("test2", partialDone);
+      clientSockets[2].on("test3", partialDone);
+
+      await mongoClient.connect();
+      servers[0].to(clientSockets[1].id).emit("test2");
+
+      await sleep(500);
+
+      servers[1].to(clientSockets[2].id).emit("test3");
+      servers[2].to(clientSockets[0].id).emit("test1");
+    });
+  });
+
   import("./connection-state-recovery");
 });

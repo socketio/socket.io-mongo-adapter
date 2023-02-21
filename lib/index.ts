@@ -6,8 +6,8 @@ import {
   Session,
 } from "socket.io-adapter";
 import { randomBytes } from "crypto";
-import { ObjectId } from "mongodb";
-import type { Collection } from "mongodb";
+import { ObjectId, MongoServerError } from "mongodb";
+import type { Collection, ChangeStream, ResumeToken } from "mongodb";
 
 const randomId = () => randomBytes(8).toString("hex");
 const debug = require("debug")("socket.io-mongo-adapter");
@@ -149,39 +149,52 @@ const replaceBinaryObjectsByBuffers = (obj: any) => {
  * @public
  */
 export function createAdapter(
-  mongoCollection: any,
+  mongoCollection: Collection,
   opts: Partial<MongoAdapterOptions> = {}
 ) {
   opts.uid = opts.uid || randomId();
 
   let isClosed = false;
   let adapters = new Map<string, MongoAdapter>();
-  let changeStream: any;
+  let changeStream: ChangeStream;
+  let resumeToken: ResumeToken;
 
   const initChangeStream = () => {
-    if (isClosed) {
+    if (isClosed || (changeStream && !changeStream.closed)) {
       return;
     }
-    if (changeStream) {
-      changeStream.removeAllListeners("change");
-      changeStream.removeAllListeners("close");
-    }
-    changeStream = mongoCollection.watch([
-      {
-        $match: {
-          "fullDocument.uid": {
-            $ne: opts.uid, // ignore events from self
+    debug("opening change stream");
+    changeStream = mongoCollection.watch(
+      [
+        {
+          $match: {
+            "fullDocument.uid": {
+              $ne: opts.uid, // ignore events from self
+            },
           },
         },
-      },
-    ]);
+      ],
+      {
+        resumeAfter: resumeToken,
+      }
+    );
 
     changeStream.on("change", (event: any) => {
-      adapters.get(event.fullDocument?.nsp)?.onEvent(event);
+      if (event.operationType === "insert") {
+        resumeToken = changeStream.resumeToken;
+        adapters.get(event.fullDocument?.nsp)?.onEvent(event);
+      }
     });
 
     changeStream.on("error", (err: Error) => {
       debug("change stream encountered an error: %s", err.message);
+      if (
+        err instanceof MongoServerError &&
+        !err.hasErrorLabel("ResumableChangeStreamError")
+      ) {
+        // the resume token was not found in the oplog
+        resumeToken = null;
+      }
     });
 
     changeStream.on("close", () => {
@@ -210,6 +223,7 @@ export function createAdapter(
       if (adapters.size === 0) {
         changeStream.removeAllListeners("close");
         changeStream.close();
+        // @ts-ignore
         changeStream = null;
         isClosed = true;
       }
@@ -246,7 +260,7 @@ export class MongoAdapter extends Adapter {
    */
   constructor(
     nsp: any,
-    mongoCollection: any,
+    mongoCollection: Collection,
     opts: Partial<MongoAdapterOptions> = {}
   ) {
     super(nsp);
@@ -456,11 +470,11 @@ export class MongoAdapter extends Adapter {
   }
 
   private scheduleHeartbeat() {
-    debug("schedule heartbeat in %d ms", this.heartbeatInterval);
     if (this.heartbeatTimer) {
       clearTimeout(this.heartbeatTimer);
     }
     this.heartbeatTimer = setTimeout(() => {
+      debug("sending heartbeat");
       this.publish({
         type: EventType.HEARTBEAT,
       });
