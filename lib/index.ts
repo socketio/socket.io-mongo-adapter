@@ -825,6 +825,9 @@ export class MongoAdapter extends Adapter {
           },
         },
         {
+          nsp: this.nsp.name,
+        },
+        {
           $or: [
             {
               "data.opts.rooms": {

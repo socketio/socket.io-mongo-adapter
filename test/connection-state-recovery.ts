@@ -50,6 +50,7 @@ describe("connection state recovery", () => {
       // @ts-ignore
       server.httpServer.close();
       server.of("/").adapter.close();
+      server.of("/foo").adapter.close();
     });
     await mongoClient.close();
   });
@@ -99,6 +100,7 @@ describe("connection state recovery", () => {
         // those packets should not be received by the client upon reconnection (room mismatch)
         servers[0].to("room2").emit("myEvent", 4);
         servers[0].except("room1").emit("myEvent", 5);
+        servers[0].of("/foo").emit("myEvent", 6);
       });
     });
 
