@@ -827,7 +827,7 @@ export class MongoAdapter extends Adapter {
 
     const session = results[0].value.data;
 
-    // could use a sparse index on [_id, data.opts.rooms, data.opts.except] (only index the documents whose type is EventType.BROADCAST)
+    // could use a sparse index on [_id, nsp, data.opts.rooms, data.opts.except] (only index the documents whose type is EventType.BROADCAST)
     const cursor = this.mongoCollection.find({
       $and: [
         {

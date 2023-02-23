@@ -15,6 +15,7 @@ Supported features:
   - [`disconnectSockets`](https://socket.io/docs/v4/server-instance/#disconnectSockets)
   - [`fetchSockets`](https://socket.io/docs/v4/server-instance/#fetchSockets)
   - [`serverSideEmit`](https://socket.io/docs/v4/server-instance/#serverSideEmit)
+- [`Connection state recovery`](https://socket.io/docs/v4/connection-state-recovery)
 
 Related packages:
 

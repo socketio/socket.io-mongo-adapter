@@ -1,3 +1,35 @@
+# History
+
+- [0.3.0](#030-2023-02-23) (Feb 2023)
+- [0.2.1](#021-2022-05-03) (May 2022)
+- [0.2.0](#020-2022-04-27) (Apr 2022)
+- [0.1.0](#010-2021-06-01) (Jun 2021)
+
+# Release notes
+
+## [0.3.0](https://github.com/socketio/socket.io-mongo-adapter/compare/0.2.1...0.3.0) (2023-02-23)
+
+
+### Features
+
+#### Connection state recovery
+
+This adapter is now compatible with the connection state recovery feature, which was added in `socket.io@4.6.0`.
+
+Reference: https://socket.io/docs/v4/connection-state-recovery
+
+Added in [02e4d57](https://github.com/socketio/socket.io-mongo-adapter/commit/02e4d57721937ce832fc9a83abddaecd4f8d38aa).
+
+#### Resume token
+
+Upon reconnection to the MongoDB server, the client will now try to resume the stream at the last offset it has processed.
+
+If the MongoDB client is disconnected for too long and its token is no longer valid, then the Socket.IO clients connected to this server may miss some packets (which was the previous behavior).
+
+Added in [e77063b](https://github.com/socketio/socket.io-mongo-adapter/commit/e77063b8fd88b68df58e7bfdc7f3ef4edb51dca0).
+
+
+
 ## [0.2.1](https://github.com/socketio/socket.io-mongo-adapter/compare/0.2.0...0.2.1) (2022-05-03)
 
 
@@ -7,7 +39,7 @@
 
 
 
-# [0.2.0](https://github.com/socketio/socket.io-mongo-adapter/compare/0.1.0...0.2.0) (2022-04-27)
+## [0.2.0](https://github.com/socketio/socket.io-mongo-adapter/compare/0.1.0...0.2.0) (2022-04-27)
 
 
 ### Features
@@ -32,7 +64,7 @@ Thanks to this change, it will now work with multiple Socket.IO servers.
 
 The adapter will now create one single MongoDB stream for all namespaces, instead of one per namespace, which could lead to performance issues.
 
-# 0.1.0 (2021-06-01)
+## 0.1.0 (2021-06-01)
 
 Initial commit
 
