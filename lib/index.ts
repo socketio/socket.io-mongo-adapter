@@ -821,7 +821,7 @@ export class MongoAdapter extends Adapter {
       return Promise.reject("error while fetching session");
     }
 
-    if (!results[0].value || !results[1]) {
+    if (!results[0]?.value || !results[1]) {
       return Promise.reject("session or offset not found");
     }
 
