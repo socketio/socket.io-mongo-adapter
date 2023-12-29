@@ -1,48 +1,55 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
-import expect = require("expect.js");
 import { io as ioc } from "socket.io-client";
 import { MongoClient } from "mongodb";
 import { createAdapter } from "../lib";
 import { AddressInfo } from "net";
+import waitForExpect from "wait-for-expect";
+import { sleep } from "./util";
 
 const NODES_COUNT = 3;
 
 describe("connection state recovery", () => {
-  let servers: Server[], ports: number[], mongoClient: MongoClient;
+  let servers: Server[];
+  let ports: number[];
+  let mongoClient: MongoClient;
 
   beforeEach(async () => {
     servers = [];
     ports = [];
 
-    mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
+    mongoClient = new MongoClient(
+      "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true"
+    );
     await mongoClient.connect();
 
     const collection = mongoClient.db("test").collection("events");
 
-    return new Promise((resolve) => {
-      for (let i = 1; i <= NODES_COUNT; i++) {
-        const httpServer = createServer();
-        const io = new Server(httpServer, {
-          pingInterval: 1500,
-          pingTimeout: 1600,
-          connectionStateRecovery: {
-            maxDisconnectionDuration: 5000,
-          },
-          adapter: createAdapter(collection),
-        });
-        httpServer.listen(async () => {
-          const port = (httpServer.address() as AddressInfo).port;
+    for (let i = 1; i <= NODES_COUNT; i++) {
+      const httpServer = createServer();
+      const io = new Server(httpServer, {
+        pingInterval: 1500,
+        pingTimeout: 1600,
+        connectionStateRecovery: {
+          maxDisconnectionDuration: 5000,
+        },
+        adapter: createAdapter(collection),
+      });
+      httpServer.listen(async () => {
+        const port = (httpServer.address() as AddressInfo).port;
 
-          servers.push(io);
-          ports.push(port);
+        servers.push(io);
+        ports.push(port);
+      });
+    }
 
-          if (servers.length === NODES_COUNT) {
-            resolve();
-          }
-        });
-      }
+    // Wait for all connections being established (done in loop above)
+    await waitForExpect(async () => {
+      expect(servers.length).toEqual(NODES_COUNT);
     });
+
+    // TODO: find a better way to wait for all nodes to be connected
+    await sleep(200);
   });
 
   afterEach(async () => {
@@ -52,7 +59,13 @@ describe("connection state recovery", () => {
       server.of("/").adapter.close();
       server.of("/foo").adapter.close();
     });
-    await mongoClient.close();
+
+    // TODO: somehow this still raises an error "connection establishment was cancelled"
+    // try {
+    //   await mongoClient.close();
+    // } catch {
+    //   // ignore, we are in teardown
+    // }
   });
 
   it("should restore the session", (done) => {
@@ -62,8 +75,8 @@ describe("connection state recovery", () => {
 
     let initialId: string;
 
-    socket.once("connect", () => {
-      expect(socket.recovered).to.eql(false);
+    socket.once("connect", async () => {
+      expect(socket.recovered).toEqual(false);
       initialId = socket.id;
 
       servers[0].emit("init");
@@ -74,8 +87,8 @@ describe("connection state recovery", () => {
       socket.io.engine.close();
 
       socket.on("connect", () => {
-        expect(socket.recovered).to.eql(true);
-        expect(socket.id).to.eql(initialId);
+        expect(socket.recovered).toEqual(true);
+        expect(socket.id).toEqual(initialId);
 
         socket.disconnect();
         done();
@@ -113,10 +126,10 @@ describe("connection state recovery", () => {
       socket.io.engine.close();
 
       socket.on("connect", () => {
-        expect(socket.recovered).to.eql(true);
+        expect(socket.recovered).toEqual(true);
 
         setTimeout(() => {
-          expect(events).to.eql([1, 2, 3]);
+          expect(events).toEqual([1, 2, 3]);
 
           socket.disconnect();
           done();
@@ -145,7 +158,7 @@ describe("connection state recovery", () => {
       socket.io.engine.close();
 
       socket.on("connect", () => {
-        expect(socket.recovered).to.eql(false);
+        expect(socket.recovered).toEqual(false);
 
         socket.disconnect();
         done();
@@ -165,7 +178,7 @@ describe("connection state recovery", () => {
       socket.io.engine.close();
 
       socket.on("connect", () => {
-        expect(socket.recovered).to.eql(false);
+        expect(socket.recovered).toEqual(false);
 
         socket.disconnect();
         done();
