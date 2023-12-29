@@ -821,11 +821,11 @@ export class MongoAdapter extends Adapter {
       return Promise.reject("error while fetching session");
     }
 
-    if (!results[0]?.value || !results[1]) {
+    if (!results[0] || !results[1]) {
       return Promise.reject("session or offset not found");
     }
 
-    const session = results[0].value.data;
+    const session = results[0].data;
 
     // could use a sparse index on [_id, nsp, data.opts.rooms, data.opts.except] (only index the documents whose type is EventType.BROADCAST)
     const cursor = this.mongoCollection.find({
