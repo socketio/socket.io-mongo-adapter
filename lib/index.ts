@@ -801,7 +801,7 @@ export class MongoAdapter extends Adapter {
     if (!ObjectId.isValid(offset)) {
       return Promise.reject("invalid offset");
     }
-    debug("restoring session: %s", pid);
+    debug("restoring session: {pid: %s, offset: %s}", pid, offset);
     const eventOffset = new ObjectId(offset);
 
     let results;
