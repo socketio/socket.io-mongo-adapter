@@ -6,7 +6,7 @@ import {
   Session,
 } from "socket.io-adapter";
 import { randomBytes } from "crypto";
-import { ObjectId, MongoServerError } from "mongodb";
+import { ObjectId, MongoServerError, WithId, Document } from "mongodb";
 import type { Collection, ChangeStream, ResumeToken } from "mongodb";
 
 const randomId = () => randomBytes(8).toString("hex");
@@ -821,11 +821,15 @@ export class MongoAdapter extends Adapter {
       return Promise.reject("error while fetching session");
     }
 
-    if (!results[0].value || !results[1]) {
+    const result = (results[0]?.ok
+      ? results[0].value // mongodb@5
+      : results[0]) as unknown as WithId<Document>; // mongodb@6
+
+    if (!result || !results[1]) {
       return Promise.reject("session or offset not found");
     }
 
-    const session = results[0].value.data;
+    const session = result.data;
 
     // could use a sparse index on [_id, nsp, data.opts.rooms, data.opts.except] (only index the documents whose type is EventType.BROADCAST)
     const cursor = this.mongoCollection.find({
