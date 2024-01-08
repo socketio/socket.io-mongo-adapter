@@ -15,7 +15,9 @@ describe("connection state recovery", () => {
     servers = [];
     ports = [];
 
-    mongoClient = new MongoClient("mongodb://localhost:27017/?replicaSet=rs0");
+    mongoClient = new MongoClient(
+      "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true"
+    );
     await mongoClient.connect();
 
     const collection = mongoClient.db("test").collection("events");
