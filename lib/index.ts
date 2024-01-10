@@ -879,12 +879,12 @@ export class MongoAdapter extends Adapter {
     session.missedPackets = [];
 
     try {
-      await cursor.forEach((document: any) => {
+      for await (const document of cursor) {
         const packetData = document?.data?.packet?.data;
         if (packetData) {
           session.missedPackets.push(packetData);
         }
-      });
+      }
     } catch (e) {
       return Promise.reject("error while fetching missed packets");
     }
