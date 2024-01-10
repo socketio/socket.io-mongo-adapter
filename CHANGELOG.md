@@ -1,11 +1,22 @@
 # History
 
+- [0.3.1](#031-2024-01-10) (Jan 2024)
 - [0.3.0](#030-2023-02-23) (Feb 2023)
 - [0.2.1](#021-2022-05-03) (May 2022)
 - [0.2.0](#020-2022-04-27) (Apr 2022)
 - [0.1.0](#010-2021-06-01) (Jun 2021)
 
 # Release notes
+
+## [0.3.1](https://github.com/socketio/socket.io-mongo-adapter/compare/0.3.0...0.3.1) (2024-01-10)
+
+
+### Bug Fixes
+
+* add support for mongodb@6 ([1a04885](https://github.com/socketio/socket.io-mongo-adapter/commit/1a0488562f1e8b4171af20378aacfa43072980dd))
+* properly handle promise rejections ([075216f](https://github.com/socketio/socket.io-mongo-adapter/commit/075216f7decac3e8660c39dc1009a27d786ca1ad))
+
+
 
 ## [0.3.0](https://github.com/socketio/socket.io-mongo-adapter/compare/0.2.1...0.3.0) (2023-02-23)
 
