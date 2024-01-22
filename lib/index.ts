@@ -617,6 +617,13 @@ export class MongoAdapter extends Adapter {
   }
 
   public serverCount(): Promise<number> {
+    this.nodesMap.forEach((lastSeen, uid) => {
+      const nodeSeemsDown = Date.now() - lastSeen > this.heartbeatTimeout;
+      if (nodeSeemsDown) {
+        debug("node %s seems down", uid);
+        this.nodesMap.delete(uid);
+      }
+    });
     return Promise.resolve(1 + this.nodesMap.size);
   }
 
@@ -671,20 +678,9 @@ export class MongoAdapter extends Adapter {
     }).catch(onPublishError);
   }
 
-  private getExpectedResponseCount() {
-    this.nodesMap.forEach((lastSeen, uid) => {
-      const nodeSeemsDown = Date.now() - lastSeen > this.heartbeatTimeout;
-      if (nodeSeemsDown) {
-        debug("node %s seems down", uid);
-        this.nodesMap.delete(uid);
-      }
-    });
-    return this.nodesMap.size;
-  }
-
   async fetchSockets(opts: BroadcastOptions): Promise<any[]> {
     const localSockets = await super.fetchSockets(opts);
-    const expectedResponseCount = this.getExpectedResponseCount();
+    const expectedResponseCount = (await this.serverCount()) - 1;
 
     if (opts.flags?.local || expectedResponseCount === 0) {
       return localSockets;
@@ -745,7 +741,7 @@ export class MongoAdapter extends Adapter {
 
   private async serverSideEmitWithAck(packet: any[]) {
     const ack = packet.pop();
-    const expectedResponseCount = this.getExpectedResponseCount();
+    const expectedResponseCount = (await this.serverCount()) - 1;
 
     debug(
       'waiting for %d responses to "serverSideEmit" request',
