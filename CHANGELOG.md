@@ -1,5 +1,6 @@
 # History
 
+- [0.3.2](#032-2024-01-23) (Jan 2024)
 - [0.3.1](#031-2024-01-10) (Jan 2024)
 - [0.3.0](#030-2023-02-23) (Feb 2023)
 - [0.2.1](#021-2022-05-03) (May 2022)
@@ -7,6 +8,17 @@
 - [0.1.0](#010-2021-06-01) (Jun 2021)
 
 # Release notes
+
+## [0.3.2](https://github.com/socketio/socket.io-mongo-adapter/compare/0.3.1...0.3.2) (2024-01-23)
+
+
+### Bug Fixes
+
+* add support for AWS DocumentDB ([#21](https://github.com/socketio/socket.io-mongo-adapter/issues/21)) ([0c80f7f](https://github.com/socketio/socket.io-mongo-adapter/commit/0c80f7fd1da772cc54971fd93a1fa93f0c5e47d0))
+* ensure CSR works with a capped collection ([d3fa038](https://github.com/socketio/socket.io-mongo-adapter/commit/d3fa03874038ed9ec011d8795ac7dc6d840f4abe))
+* exclude offline nodes when calling serverCount() ([e2fb8c2](https://github.com/socketio/socket.io-mongo-adapter/commit/e2fb8c2f9d126e763e4f0c0ffba158f2d0c5c17a))
+
+
 
 ## [0.3.1](https://github.com/socketio/socket.io-mongo-adapter/compare/0.3.0...0.3.1) (2024-01-10)
 

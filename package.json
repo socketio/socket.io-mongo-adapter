@@ -1,6 +1,6 @@
 {
   "name": "@socket.io/mongo-adapter",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "The Socket.IO MongoDB adapter, allowing to broadcast events between several Socket.IO servers",
   "license": "MIT",
   "repository": {
