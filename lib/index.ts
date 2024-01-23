@@ -806,28 +806,22 @@ export class MongoAdapter extends Adapter {
     try {
       results = await Promise.all([
         // could use a sparse index on [data.pid] (only index the documents whose type is EventType.SESSION)
-        this.mongoCollection.findOneAndDelete({
-          type: EventType.SESSION,
-          "data.pid": pid,
-        }),
+        this.findSession(pid),
         this.mongoCollection.findOne({
           type: EventType.BROADCAST,
           _id: eventOffset,
         }),
       ]);
     } catch (e) {
+      debug("error while fetching session: %s", (e as Error).message);
       return Promise.reject("error while fetching session");
     }
 
-    const result = (results[0]?.ok
-      ? results[0].value // mongodb@5
-      : results[0]) as unknown as WithId<Document>; // mongodb@6
-
-    if (!result || !results[1]) {
+    if (!results[0] || !results[1]) {
       return Promise.reject("session or offset not found");
     }
 
-    const session = result.data;
+    const session = results[0].data;
 
     // could use a sparse index on [_id, nsp, data.opts.rooms, data.opts.except] (only index the documents whose type is EventType.BROADCAST)
     const cursor = this.mongoCollection.find({
@@ -888,5 +882,55 @@ export class MongoAdapter extends Adapter {
     }
 
     return session;
+  }
+
+  private findSession(
+    pid: PrivateSessionId
+  ): Promise<WithId<Document> | undefined> {
+    const isCollectionCapped = !this.addCreatedAtField;
+    if (isCollectionCapped) {
+      return this.mongoCollection
+        .findOne(
+          {
+            type: EventType.SESSION,
+            "data.pid": pid,
+          },
+          {
+            sort: {
+              _id: -1,
+            },
+          }
+        )
+        .then((result) => {
+          if (!result) {
+            debug("session not found");
+            return;
+          }
+
+          if (result.data.sid) {
+            debug("session found, adding tombstone");
+
+            // since the collection is capped, we cannot remove documents from it, so we add a tombstone to prevent recovering the same session twice
+            // note: we could also have used two distinct collections, one for the events (capped) and the other for the sessions (not capped, with a TTL)
+            const TOMBSTONE_SESSION = { pid, tombstone: true };
+            this.persistSession(TOMBSTONE_SESSION);
+
+            return result;
+          } else {
+            debug("tombstone session found");
+          }
+        });
+    } else {
+      return this.mongoCollection
+        .findOneAndDelete({
+          type: EventType.SESSION,
+          "data.pid": pid,
+        })
+        .then((result) => {
+          return result?.ok && result.value
+            ? result.value // mongodb@5
+            : (result as unknown as WithId<Document>); // mongodb@6
+        });
+    }
   }
 }
