@@ -7,7 +7,7 @@ import {
 } from "socket.io-adapter";
 import { randomBytes } from "crypto";
 import { ObjectId, MongoServerError, WithId, Document } from "mongodb";
-import type { Collection, ChangeStream, ResumeToken } from "mongodb";
+import type { Collection, ChangeStream, ChangeStreamOptions } from "mongodb";
 
 const randomId = () => randomBytes(8).toString("hex");
 const debug = require("debug")("socket.io-mongo-adapter");
@@ -161,7 +161,7 @@ export function createAdapter(
   let isClosed = false;
   let adapters = new Map<string, MongoAdapter>();
   let changeStream: ChangeStream;
-  let resumeToken: ResumeToken;
+  let changeStreamOpts: ChangeStreamOptions = {};
 
   const initChangeStream = () => {
     if (isClosed || (changeStream && !changeStream.closed)) {
@@ -178,14 +178,12 @@ export function createAdapter(
           },
         },
       ],
-      {
-        resumeAfter: resumeToken,
-      }
+      changeStreamOpts
     );
 
     changeStream.on("change", (event: any) => {
       if (event.operationType === "insert") {
-        resumeToken = changeStream.resumeToken;
+        changeStreamOpts.resumeAfter = changeStream.resumeToken;
         adapters.get(event.fullDocument?.nsp)?.onEvent(event);
       }
     });
@@ -197,7 +195,7 @@ export function createAdapter(
         !err.hasErrorLabel("ResumableChangeStreamError")
       ) {
         // the resume token was not found in the oplog
-        resumeToken = null;
+        changeStreamOpts = {};
       }
     });
 
