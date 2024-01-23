@@ -6,8 +6,8 @@ import {
   Session,
 } from "socket.io-adapter";
 import { randomBytes } from "crypto";
-import { ObjectId, MongoServerError, WithId, Document, ChangeStreamOptions } from "mongodb";
-import type { Collection, ChangeStream } from "mongodb";
+import { ObjectId, MongoServerError, WithId, Document } from "mongodb";
+import type { Collection, ChangeStream, ChangeStreamOptions } from "mongodb";
 
 const randomId = () => randomBytes(8).toString("hex");
 const debug = require("debug")("socket.io-mongo-adapter");
@@ -157,7 +157,7 @@ export function createAdapter(
   let isClosed = false;
   let adapters = new Map<string, MongoAdapter>();
   let changeStream: ChangeStream;
-  let changeStreamOpts: ChangeStreamOptions = {}
+  let changeStreamOpts: ChangeStreamOptions = {};
 
   const initChangeStream = () => {
     if (isClosed || (changeStream && !changeStream.closed)) {
