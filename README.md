@@ -9,31 +9,24 @@ The `@socket.io/mongo-adapter` package allows broadcasting packets between multi
 
 Unlike the existing [`socket.io-adapter-mongo`](https://github.com/lklepner/socket.io-adapter-mongo) package which uses [tailable cursors](https://docs.mongodb.com/manual/core/tailable-cursors/), this package relies on [change streams](https://docs.mongodb.com/manual/changeStreams/) and thus requires a replica set or a sharded cluster.
 
-Supported features:
-
-- [broadcasting](https://socket.io/docs/v4/broadcasting-events/)
-- [utility methods](https://socket.io/docs/v4/server-instance/#Utility-methods)
-  - [`socketsJoin`](https://socket.io/docs/v4/server-instance/#socketsJoin)
-  - [`socketsLeave`](https://socket.io/docs/v4/server-instance/#socketsLeave)
-  - [`disconnectSockets`](https://socket.io/docs/v4/server-instance/#disconnectSockets)
-  - [`fetchSockets`](https://socket.io/docs/v4/server-instance/#fetchSockets)
-  - [`serverSideEmit`](https://socket.io/docs/v4/server-instance/#serverSideEmit)
-- [`Connection state recovery`](https://socket.io/docs/v4/connection-state-recovery)
-
-Related packages:
-
-- MongoDB emitter: https://github.com/socketio/socket.io-mongo-emitter/
-- Redis adapter: https://github.com/socketio/socket.io-redis-adapter/
-- Redis emitter: https://github.com/socketio/socket.io-redis-emitter/
-- Postgres adapter: https://github.com/socketio/socket.io-postgres-adapter/
-- Postgres emitter: https://github.com/socketio/socket.io-postgres-emitter/
-
 **Table of contents**
 
+- [Supported features](#supported-features)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Usage with a capped collection](#usage-with-a-capped-collection)
+  - [Usage with a TTL index](#usage-with-a-ttl-index)
 - [Known errors](#known-errors)
 - [License](#license)
+
+## Supported features
+
+| Feature                         | `socket.io` version | Support                                        |
+|---------------------------------|---------------------|------------------------------------------------|
+| Socket management               | `4.0.0`             | :white_check_mark: YES (since version `0.1.0`) |
+| Inter-server communication      | `4.1.0`             | :white_check_mark: YES (since version `0.1.0`) |
+| Broadcast with acknowledgements | `4.5.0`             | :white_check_mark: YES (since version `0.2.0`) |
+| Connection state recovery       | `4.6.0`             | :white_check_mark: YES (since version `0.3.0`) |
 
 ## Installation
 
