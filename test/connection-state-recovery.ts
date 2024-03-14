@@ -58,12 +58,7 @@ describe("connection state recovery", () => {
     });
 
     afterEach(async () => {
-      servers.forEach((server) => {
-        // @ts-ignore
-        server.httpServer.close();
-        server.of("/").adapter.close();
-        server.of("/foo").adapter.close();
-      });
+      servers.forEach((server) => server.close());
       await mongoClient.close();
     });
 
@@ -267,12 +262,7 @@ describe("connection state recovery", () => {
     });
 
     afterEach(async () => {
-      servers.forEach((server) => {
-        // @ts-ignore
-        server.httpServer.close();
-        server.of("/").adapter.close();
-        server.of("/foo").adapter.close();
-      });
+      servers.forEach((server) => server.close());
       await mongoClient.close();
     });
 
