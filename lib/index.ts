@@ -107,6 +107,11 @@ export interface MongoAdapterOptions {
    * @default false
    */
   addCreatedAtField: boolean;
+
+  /**
+   * Options to pass to the MongoDB change stream.
+   */
+  changeStreamOptions?: Partial<ChangeStreamOptions>;
 }
 
 /**
@@ -161,7 +166,7 @@ export function createAdapter(
   let isClosed = false;
   let adapters = new Map<string, MongoAdapter>();
   let changeStream: ChangeStream;
-  let changeStreamOpts: ChangeStreamOptions = {};
+  let changeStreamOpts: ChangeStreamOptions = opts.changeStreamOptions ?? {};
 
   const initChangeStream = () => {
     if (isClosed || (changeStream && !changeStream.closed)) {
