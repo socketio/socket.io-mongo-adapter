@@ -1,13 +1,26 @@
 # History
 
-- [0.3.2](#032-2024-01-23) (Jan 2024)
-- [0.3.1](#031-2024-01-10) (Jan 2024)
-- [0.3.0](#030-2023-02-23) (Feb 2023)
-- [0.2.1](#021-2022-05-03) (May 2022)
-- [0.2.0](#020-2022-04-27) (Apr 2022)
-- [0.1.0](#010-2021-06-01) (Jun 2021)
+| Version                  | Release date  |
+|--------------------------|---------------|
+| [0.4.0](#040-2025-08-10) | August 2025   |
+| [0.3.2](#032-2024-01-23) | January 2024  |
+| [0.3.1](#031-2024-01-10) | January 2024  |
+| [0.3.0](#030-2023-02-23) | February 2023 |
+| [0.2.1](#021-2022-05-03) | May 2022      |
+| [0.2.0](#020-2022-04-27) | April 2022    |
+| [0.1.0](#010-2021-06-01) | June 2021     |
 
 # Release notes
+
+## [0.4.0](https://github.com/socketio/socket.io-mongo-adapter/compare/0.3.2...0.4.0) (2025-08-10)
+
+
+### Features
+
+* allow to specify additional change stream options ([#26](https://github.com/socketio/socket.io-mongo-adapter/issues/26)) ([eae849b](https://github.com/socketio/socket.io-mongo-adapter/commit/eae849b02202afa7ea7cfcf1e48ba2775aaaa982))
+
+
+
 
 ## [0.3.2](https://github.com/socketio/socket.io-mongo-adapter/compare/0.3.1...0.3.2) (2024-01-23)
 
